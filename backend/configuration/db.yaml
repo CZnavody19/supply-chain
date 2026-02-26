@@ -1,3 +1,3 @@
-ConnectionURI: bolt://localhost:7687
+ConnectionURI: bolt://neo4j:7687
 Username: neo4j
 Password: testpassword
