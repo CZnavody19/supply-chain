@@ -1,0 +1,7 @@
+EnableDebugLogger: true
+EnableFileLogger: true
+FileLogLevel: info
+FileLogOutput: "logs.log"
+FileMaxSize: 100 # MB
+FileMaxBackups: 2
+FileMaxAge: 2 # days

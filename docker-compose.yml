@@ -1,0 +1,30 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ./Dockerfile.dev
+    command: air
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    network_mode: "host"
+  neo4j:
+    image: neo4j:5
+    container_name: neo4j
+    environment:
+      - NEO4J_AUTH=neo4j/testpassword
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    healthcheck:
+      test:
+        ["CMD", "cypher-shell", "-u", "neo4j", "-p", "testpassword", "RETURN 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
