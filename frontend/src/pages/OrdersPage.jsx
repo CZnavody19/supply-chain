@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getOrders, getSupplyPath, getCostBreakdown, getOptimalRoute } from '../api';
+import { getOrders, getSupplyPath, getCostBreakdown, getOptimalRoute, getLocations, getCompanies } from '../api';
 import StatusBadge from '../components/StatusBadge';
 import { formatCurrency, formatNumber } from '../utils/formatters';
 
@@ -16,8 +16,23 @@ export default function OrdersPage() {
   const [routeInput, setRouteInput] = useState({ from: 'loc-001', to: 'loc-002' });
   const [routeError, setRouteError] = useState('');
   const [optimalRoute, setOptimalRoute] = useState(null);
+  
+  // Store a dictionary of id -> coordinates
+  const [coordDictionary, setCoordDictionary] = useState({});
 
-  useEffect(() => { getOrders().then(setOrders).catch(console.error); }, []);
+  useEffect(() => { 
+    getOrders().then(setOrders).catch(console.error); 
+    
+    // Fetch all locations and companies to map their coordinates
+    Promise.all([getLocations(), getCompanies()])
+      .then(([locs, comps]) => {
+        const dict = {};
+        locs.forEach(l => dict[l.id] = l.coordinates || { lat: l.lat, lng: l.lng });
+        comps.forEach(c => dict[c.id] = c.coordinates || { lat: c.lat, lng: c.lng });
+        setCoordDictionary(dict);
+      })
+      .catch(console.error);
+  }, []);
 
   const viewDetails = (id) => {
     getSupplyPath(id).then(setPath).catch(console.error);
@@ -31,7 +46,6 @@ export default function OrdersPage() {
     .then(setOptimalRoute)
     .catch(err => {
       if (err.response && err.response.data) {
-        // This will print "No route found between locations"
         setRouteError(typeof err.response.data === 'string' ? err.response.data : 'Route not found.');
       } else {
         setRouteError('An error occurred while calculating the route.');
@@ -44,6 +58,22 @@ export default function OrdersPage() {
     const matchesSearch = o.id.toLowerCase().includes(searchFilter.toLowerCase());
     return matchesStatus && matchesSearch;
   });
+
+  // Look up coordinates from the dictionary using the IDs in the supply path
+  const mapMarkers = [];
+  path?.path?.forEach(stage => {
+    const targetId = stage.location?.id || stage.from || stage.company?.id;
+    const name = stage.location?.name || stage.company?.name || stage.name;
+    
+    if (targetId && coordDictionary[targetId]) {
+      const coords = coordDictionary[targetId];
+      if (coords.lat && coords.lng) {
+        mapMarkers.push({ position: [coords.lat, coords.lng], name });
+      }
+    }
+  });
+
+  const mapCenter = mapMarkers.length > 0 ? mapMarkers[0].position : [25.033, 121.565];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -92,11 +122,14 @@ export default function OrdersPage() {
               
               <p>Total Duration: {path.totalDuration}</p>
               <ul>{path.path.map((p, i) => <li key={i}><strong>{p.name}</strong> - {p.status}</li>)}</ul>
-              <div style={{ height: '250px', marginTop: '1rem', zIndex: 0 }}>
-                <MapContainer center={[25.033, 121.565]} zoom={2} style={{ height: '100%', width: '100%' }}>
+              <div style={{ height: '300px', marginTop: '1rem', zIndex: 0 }}>
+                <MapContainer key={path.orderId} center={mapCenter} zoom={3} style={{ height: '100%', width: '100%' }}>
                   <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                  <Marker position={[25.033, 121.565]}><Popup>Start</Popup></Marker>
-                  <Marker position={[50.110, 8.682]}><Popup>End</Popup></Marker>
+                  {mapMarkers.map((marker, idx) => (
+                    <Marker key={idx} position={marker.position}>
+                      <Popup>{marker.name}</Popup>
+                    </Marker>
+                  ))}
                 </MapContainer>
               </div>
             </div>
@@ -122,7 +155,6 @@ export default function OrdersPage() {
           <button className="btn" onClick={calcRoute}>Calculate Route</button>
         </div>
 
-        {/* THIS IS THE PART THAT DISPLAYS THE ERROR */}
         {routeError && (
           <div style={{ padding: '1rem', background: '#fee2e2', color: '#991b1b', borderRadius: '4px', marginBottom: '1rem' }}>
             {routeError}

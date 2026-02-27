@@ -17,3 +17,4 @@ export const getImpact = (id) => api.get(`/analytics/impact-analysis?supplier=${
 export const getStockLevels = (id) => api.get(`/analytics/stock-levels?product=${id}`).then(res => res.data);
 export const getForecastDelays = (months = 3) => api.get(`/analytics/forecast-delays?months=${months}`).then(res => res.data);
 export const getOptimalRoute = (from, to) => api.get(`/routes/optimal?from=${from}&to=${to}`).then(res => res.data);
+export const getLocations = () => api.get('/locations').then(res => res.data); //
